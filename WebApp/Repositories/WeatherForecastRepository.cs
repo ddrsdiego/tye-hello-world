@@ -11,7 +11,7 @@
     {
         Task Save(IEnumerable<T> weatherForecasts);
 
-        Task<IReadOnlyDictionary<string, T>> Get(IEnumerable<string> ids);
+        Task<Dictionary<string, T>> Get(IEnumerable<string> ids);
     }
 
     public interface IWeatherForecastRepository : IDaprRepository<WeatherForecast>
@@ -72,7 +72,7 @@
             }
         }
 
-        public async Task<IReadOnlyDictionary<string, WeatherForecast>> Get(IEnumerable<string> ids)
+        public Task<Dictionary<string, WeatherForecast>> Get(IEnumerable<string> ids)
         {
             var enumerable = ids as string[] ?? ids.ToArray();
             var promises =
@@ -95,11 +95,17 @@
                     continue;
                 }
 
-                var slowTaskResult = await promise.Value;
-                results.Add(promise.Key, slowTaskResult.WeatherForecast);
+                results[promise.Key] = promise.Value.IsCompletedSuccessfully
+                    ? promise.Value.Result.WeatherForecast
+                    : SlowTask(promise.Value).Result.Item1;
             }
+            
+            return Task.FromResult(results);
 
-            return results;
+            static async Task<(WeatherForecast, string)> SlowTask(Task<(WeatherForecast, string)> task)
+            {
+                return await task;
+            }
         }
     }
 }
