@@ -30,12 +30,24 @@
             _weatherForecastRepository = weatherForecastRepository;
         }
 
-        [HttpGet]
-        public async Task<IEnumerable<WeatherForecast>> Get()
+        [HttpGet("capacity")]
+        public async Task<IEnumerable<WeatherForecast>> Get(int capacity)
+        {
+            var ids = new List<string>(capacity);
+            for (var counter = 1; counter <= capacity; counter++)
+            {
+                ids.Add(counter.ToString());
+            }
+
+            var res = await _weatherForecastRepository.Get(ids.Select(x => x));
+            return res.Values;
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> Post(int capacity)
         {
             var rng = new Random();
-
-            var weatherForecasts = Enumerable.Range(1, 5).Select(index => new WeatherForecast
+            var weatherForecasts = Enumerable.Range(1, capacity).Select(index => new WeatherForecast
             {
                 Id = index.ToString(),
                 Date = DateTime.Now.AddDays(index),
@@ -45,9 +57,7 @@
 
             await _weatherForecastRepository.Save(weatherForecasts);
 
-            var res = await _weatherForecastRepository.Get(weatherForecasts.Select(x => x.Id));
-
-            return res.Values;
+            return Created("", weatherForecasts);
         }
     }
 }
