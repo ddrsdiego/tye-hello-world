@@ -4,6 +4,7 @@
     using System.Collections.Generic;
     using System.Linq;
     using System.Threading.Tasks;
+    using Dapr;
     using Dapr.Client;
     using Microsoft.Extensions.Logging;
 
@@ -75,15 +76,16 @@
         public Task<Dictionary<string, WeatherForecast>> Get(IEnumerable<string> ids)
         {
             var enumerable = ids as string[] ?? ids.ToArray();
+
             var promises =
-                new Dictionary<string, Task<(WeatherForecast WeatherForecast, string Id)>>(enumerable.Length);
+                new Dictionary<string, Task<StateEntry<WeatherForecast>>>(enumerable.Length);
 
             foreach (var id in enumerable)
             {
-                var stateAndETagAsync = _daprClient.GetStateAndETagAsync<WeatherForecast>(nameof(WeatherForecast),
+                var stateEntry = _daprClient.GetStateEntryAsync<WeatherForecast>(nameof(WeatherForecast),
                     id);
 
-                promises.Add(id, stateAndETagAsync);
+                promises.Add(id, stateEntry);
             }
 
             var results = new Dictionary<string, WeatherForecast>(promises.Count);
@@ -91,18 +93,18 @@
             {
                 if (promise.Value.IsCompletedSuccessfully)
                 {
-                    results.Add(promise.Key, promise.Value.Result.WeatherForecast);
+                    results.Add(promise.Key, promise.Value.Result.Value);
                     continue;
                 }
 
                 results[promise.Key] = promise.Value.IsCompletedSuccessfully
-                    ? promise.Value.Result.WeatherForecast
-                    : SlowTask(promise.Value).Result.Item1;
+                    ? promise.Value.Result.Value
+                    : SlowTask(promise.Value).Result.Value;
             }
-            
+
             return Task.FromResult(results);
 
-            static async Task<(WeatherForecast, string)> SlowTask(Task<(WeatherForecast, string)> task)
+            async Task<StateEntry<WeatherForecast>> SlowTask(Task<StateEntry<WeatherForecast>> task)
             {
                 return await task;
             }
